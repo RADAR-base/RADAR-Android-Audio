@@ -42,7 +42,7 @@ public class SmileJNI {
     };
 
     public interface ThreadListener {
-        public void onFinishedRecording();
+        void onFinishedRecording();
     }
 
     String conf;

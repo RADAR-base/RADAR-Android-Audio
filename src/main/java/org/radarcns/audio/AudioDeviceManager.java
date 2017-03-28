@@ -46,7 +46,8 @@ public class AudioDeviceManager implements DeviceManager {
     private static final long AUDIO_REC_RATE_S = 30;
     private static final String AUDIO_CONFIG_FILE = "liveinput_android.conf";
 
-    public AudioDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId, String sourceId, TableDataHandler dataHandler, AudioTopics topics) {
+    public AudioDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId,
+                              String sourceId, TableDataHandler dataHandler, AudioTopics topics) {
         this.dataHandler = dataHandler;
         this.audioTable = dataHandler.getCache(topics.getAudioTopic());
         this.audioService = phoneService;
@@ -72,46 +73,48 @@ public class AudioDeviceManager implements DeviceManager {
         updateStatus(DeviceStatusListener.Status.CONNECTED);
     }
 
-    public final synchronized void setAudioUpdateRate(final long period, final long duration, final String configFile) {
-        if (audioReadFuture != null) {
-            audioReadFuture.cancel(false);
-        }
+    private void setAudioUpdateRate(final long period, final long duration, final String configFile) {
         SmileJNI.prepareOpenSMILE(context);
-        final String conf = this.context.getCacheDir()+"/"+configFile;//"/liveinput_android.conf";
+        final String conf = this.context.getCacheDir() + "/" + configFile;//"/liveinput_android.conf";
         final MeasurementKey deviceId = deviceStatus.getId();
 
-        audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                double time = System.currentTimeMillis() / 1_000d;//event.timestamp / 1_000_000_000d;
-                double timeReceived = System.currentTimeMillis() / 1_000d;
-                final String dataPath = context.getExternalFilesDir("") + "/audio_"+ (new Date()).getTime()+".bin";
-                //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
-                SmileJNI smileJNI = new SmileJNI();
-                final double finalTime = time;
-                final double finalTimeReceived = timeReceived;
-                smileJNI.addListener(new SmileJNI.ThreadListener(){
-                    @Override
-                    public void onFinishedRecording() {
-                        try {
-                            File dataFile = new File(dataPath);
-                            if (dataFile.exists()) {
-                                byte[] b = IOUtils.toByteArray(new FileInputStream(dataFile));
-                                String b64 = Base64.encodeToString(b, Base64.DEFAULT);
-                                OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(finalTime, finalTimeReceived, conf, b64);
-                                dataHandler.addMeasurement(audioTable, deviceId, value);
-                            } else {
-                                logger.warn("Failed to read audio file");
-                            }
-                        } catch (IOException e) {
-                            logger.error("Failed to read audio file");
-                        }
-                    }
-                });
-                smileJNI.runOpenSMILE(conf,dataPath, duration);
+        synchronized (this) {
+            if (audioReadFuture != null) {
+                audioReadFuture.cancel(false);
             }
-        }, 0, period, TimeUnit.SECONDS);
-        logger.info("SMS log: listener activated and set to a period of {}", period);
+            audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    logger.info("Setting up audio recording");
+                    final String dataPath = context.getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
+                    //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
+                    SmileJNI smileJNI = new SmileJNI();
+                    final double startTime = System.currentTimeMillis() / 1_000d; //event.timestamp / 1_000_000_000d;
+                    smileJNI.addListener(new SmileJNI.ThreadListener() {
+                        @Override
+                        public void onFinishedRecording() {
+                            logger.info("Finished recording audio to file {}", dataPath);
+                            try {
+                                File dataFile = new File(dataPath);
+                                if (dataFile.exists()) {
+                                    byte[] b = IOUtils.toByteArray(new FileInputStream(dataFile));
+                                    String b64 = Base64.encodeToString(b, Base64.DEFAULT);
+                                    double timeReceived = System.currentTimeMillis() / 1_000d;
+                                    OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
+                                    dataHandler.addMeasurement(audioTable, deviceId, value);
+                                } else {
+                                    logger.warn("Failed to read audio file");
+                                }
+                            } catch (IOException e) {
+                                logger.error("Failed to read audio file");
+                            }
+                        }
+                    });
+                    logger.info("Starting audio recording with configuration {} and duration {}, stored to {}", conf, duration, dataPath);
+                    smileJNI.runOpenSMILE(conf, dataPath, duration);
+                }
+            }, 0, period, TimeUnit.SECONDS);
+        }
     }
 
     @Override
@@ -123,6 +126,7 @@ public class AudioDeviceManager implements DeviceManager {
     @Override
     public void close() {
         isRegistered = false;
+        executor.shutdown();
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
     }
 
@@ -138,6 +142,7 @@ public class AudioDeviceManager implements DeviceManager {
 
     private synchronized void updateStatus(DeviceStatusListener.Status status) {
         this.deviceStatus.setStatus(status);
+        this.audioService.deviceStatusUpdated(this, status);
     }
 
     @Override
