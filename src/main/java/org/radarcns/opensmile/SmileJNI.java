@@ -17,6 +17,8 @@ import android.content.ContextWrapper;
 import android.content.res.AssetManager;
 import android.util.Log;
 
+import org.apache.commons.compress.utils.IOUtils;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -190,22 +192,9 @@ public class SmileJNI {
 
             try (FileInputStream in = assetManager.openFd(filename).createInputStream();
                  FileOutputStream outst = new FileOutputStream(outFile)) {
-                copyFile(in, outst);
+                IOUtils.copy(in, outst);
             } catch(IOException e) {
                 Log.e("tag", "Failed to copy asset file: " + filename, e);
-            }
-        }
-    }
-    private static void copyFile(FileInputStream in, FileOutputStream out) throws IOException {
-        try (FileChannel inChannel = in.getChannel();
-             FileChannel outChannel = out.getChannel()) {
-            long count = inChannel.size();
-            long offset = 0;
-
-            while (count > 0) {
-                long transferred = inChannel.transferTo(offset, count, outChannel);
-                count -= transferred;
-                offset += transferred;
             }
         }
     }
