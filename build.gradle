@@ -1,23 +1,168 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
-
 buildscript {
     repositories {
         jcenter()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:2.2.3'
-
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
-        classpath 'com.google.gms:google-services:3.0.0'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
     }
 }
 
-allprojects {
-    repositories {
-        jcenter()
-        maven {
-            url 'http://packages.confluent.io/maven/'
+apply plugin: 'com.android.library'
+apply plugin: 'com.jfrog.bintray'
+apply plugin: 'com.github.dcendents.android-maven'
+
+android {
+    compileSdkVersion 22
+    buildToolsVersion "22.0.1"
+
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 22
+        versionCode 1
+        versionName '0.1-alpha.1'
+
+        ndk {
+            moduleName 'radar-android-audio'
         }
     }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            libraryVariants.all { variant ->
+                variant.outputs.each { output ->
+                    if (output.outputFile != null && output.outputFile.name.endsWith('.aar')) {
+                        output.outputFile = new File(output.outputFile.parent,
+                                "${archivesBaseName}-${android.defaultConfig.versionName}.aar")
+                    }
+                }
+            }
+        }
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDir 'src/main/libs'
+            jni.srcDirs = [] //disable automatic ndk-build call
+        }
+    }
+    lintOptions {
+        abortOnError false
+    }
+    packagingOptions {
+        exclude 'META-INF/ASL2.0'
+        exclude 'META-INF/LICENSE'
+    }
+}
+
+//---------------------------------------------------------------------------//
+// Configuration                                                             //
+//---------------------------------------------------------------------------//
+
+group = 'org.radarcns'
+ext.moduleName = 'radar-android-audio'
+ext.githubUrl = 'https://github.com/RADAR-CNS/RADAR-Android-Audio.git'
+ext.moduleDescription = 'Audio phone sensor plugin for RADAR passive remote monitoring app'
+version = android.defaultConfig.versionName
+
+//---------------------------------------------------------------------------//
+// Sources and classpath configurations                                      //
+//---------------------------------------------------------------------------//
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    // needed to work with testCompile -> kafka-clients
+    compile 'com.android.support:appcompat-v7:22.2.0'
+    compile 'org.radarcns:radar-commons-android:0.1-alpha.1'
+    compile 'commons-codec:commons-codec:1.10'
+
+    testCompile 'junit:junit:4.12'
+    testCompile 'org.slf4j:slf4j-simple:1.7.21'
+}
+
+task sourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    classifier = 'sources'
+}
+
+task javadoc(type: Javadoc) {
+    source = android.sourceSets.main.java.srcDirs
+    classpath += configurations.compile
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+artifacts {
+    archives javadocJar
+    archives sourcesJar
+}
+
+def pomConfig = {
+    licenses {
+        license {
+            name "The Apache Software License, Version 2.0"
+            url "http://www.apache.org/licenses/LICENSE-2.0.txt"
+            distribution "RADAR Android Phone"
+        }
+    }
+    developers {
+        developer {
+            id "radar-cns"
+            name "Joris Borgdorff"
+            email "joris@thehyve.nl"
+        }
+    }
+}
+
+install {
+    repositories.mavenInstaller {
+        pom.project {
+            group project.group
+            artifactId moduleName
+            version project.version
+        }
+        pom.withXml {
+            def root = asNode()
+            root.appendNode('description', moduleDescription)
+            root.appendNode('name', moduleName)
+            root.appendNode('url', githubUrl)
+            root.children().last() + pomConfig
+        }
+    }
+}
+
+bintray {
+    user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+    key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+    configurations = ['archives']
+    pkg {
+        repo = project.group
+        name = moduleName
+        userOrg = 'radar-cns'
+        licenses = ['Apache-2.0']
+        vcsUrl = githubUrl
+        version {
+            name = project.version
+            desc = moduleDescription
+            vcsTag = System.getenv('TRAVIS_TAG')
+            released = new Date()
+            gpg {
+                sign = true //Determines whether to GPG sign the files. The default is false
+            }
+        }
+    }
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.4.1'
+    distributionUrl distributionUrl.replace("bin", "all")
 }
