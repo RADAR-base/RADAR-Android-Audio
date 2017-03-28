@@ -54,5 +54,17 @@
         <key>location_network_update_rate</key>
         <value>600</value>
     </entry>
+    <entry>
+        <key>audio_rec_rate_s</key>
+        <value>15</value>
+    </entry>
+    <entry>
+        <key>audio_duration_s</key>
+        <value>3</value>
+    </entry>
+    <entry>
+        <key>audio_config_file</key>
+        <value>liveinput_android.conf</value>
+    </entry>
 </defaultsMap>
 <!-- END xml_defaults -->

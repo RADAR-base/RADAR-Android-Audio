@@ -22,17 +22,22 @@ import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import org.radarcns.android.DeviceManager;
+import org.radarcns.android.DeviceState;
 import org.radarcns.android.DeviceStatusListener;
 import org.radarcns.android.MeasurementTable;
 import org.radarcns.android.TableDataHandler;
 import org.radarcns.kafka.AvroTopic;
 import org.radarcns.kafka.rest.ServerStatusListener;
 import org.radarcns.key.MeasurementKey;
+import org.radarcns.opensmile.SmileJNI;
+import org.radarcns.util.IOUtil;
 import org.radarcns.util.PersistentStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.Date;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -60,7 +65,9 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
     private final MeasurementTable<PhoneSensorLocation> locationTable;
     private final MeasurementTable<PhoneSensorUserInteraction> userInteractionTable;
     private final MeasurementTable<AndroidStatusServer> serverStatusTable;
+    private final MeasurementTable<PhoneSensorAudio> audioTable;
     private final AvroTopic<MeasurementKey, PhoneSensorBatteryLevel> batteryTopic;
+
 
     private final PhoneSensorsDeviceStatus deviceStatus;
 
@@ -71,6 +78,7 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
     private LocationListener locationListener;
     private ScheduledFuture<?> callLogReadFuture;
     private ScheduledFuture<?> smsLogReadFuture;
+    private ScheduledFuture<?> audioReadFuture;
     private final ScheduledExecutorService executor;
 
     private static final String LATITUDE_REFERENCE = "latitude.reference";
@@ -82,6 +90,9 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
 
     private final long CALL_SMS_LOG_INTERVAL_DEFAULT = 24*60*60;
     private final long LOCATION_NETWORK_INTERVAL_DEFAULT = 10*60;
+    private final long AUDIO_DURATION_S = 5;
+    private final long AUDIO_REC_RATE_S = 30;
+    private final String AUDIO_CONFIG_FILE = "liveinput_android.conf";
     private final long LOCATION_GPS_INTERVAL_DEFAULT = 60*60;
 
     public PhoneSensorsDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId, String sourceId, TableDataHandler dataHandler, PhoneSensorsTopics topics) {
@@ -90,6 +101,7 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
         this.lightTable = dataHandler.getCache(topics.getLightTopic());
         this.callTable = dataHandler.getCache(topics.getCallTopic());
         this.smsTable = dataHandler.getCache(topics.getSmsTopic());
+        this.audioTable = dataHandler.getCache(topics.getAudioTopic());
         this.locationTable = dataHandler.getCache(topics.getLocationTopic());
         this.userInteractionTable = dataHandler.getCache(topics.getUserInteractionTopic());
         this.batteryTopic = topics.getBatteryLevelTopic();
@@ -170,6 +182,9 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
         locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         setLocationUpdateRate(LOCATION_GPS_INTERVAL_DEFAULT, LOCATION_NETWORK_INTERVAL_DEFAULT);
 
+        // Audio recording
+        //setAudioUpdateRate(AUDIO_REC_RATE_S,AUDIO_DURATION_S,AUDIO_CONFIG_FILE);
+
         // Screen active
         IntentFilter screenStateFilter = new IntentFilter();
         screenStateFilter.addAction(Intent.ACTION_USER_PRESENT);
@@ -247,6 +262,9 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
             public void run() {
                 try {
                     Cursor c = context.getContentResolver().query(Telephony.Sms.CONTENT_URI, null, null, null, Telephony.Sms.DATE + " DESC");
+                    if(c==null)
+                        return;
+
                     if (!c.moveToFirst()) {
                         c.close();
                         return;
@@ -306,6 +324,52 @@ public class PhoneSensorsDeviceManager implements DeviceManager, SensorEventList
             logger.warn("Location Network listener not found");
         }
     }
+
+    public final synchronized void setAudioUpdateRate(final long period, final long duration, final String configFile) {
+        if (audioReadFuture != null) {
+            audioReadFuture.cancel(false);
+        }
+        SmileJNI.prepareOpenSMILE(context);
+        final String conf = this.context.getCacheDir()+"/"+configFile;//"/liveinput_android.conf";
+        final MeasurementKey deviceId = deviceStatus.getId();
+
+        audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                double time = System.currentTimeMillis() / 1_000d;//event.timestamp / 1_000_000_000d;
+                double timeReceived = System.currentTimeMillis() / 1_000d;
+                final String dataPath = context.getExternalFilesDir("") + "/audio_"+ (new Date()).getTime()+".bin";
+                //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
+                SmileJNI smileJNI = new SmileJNI();
+                final double finalTime = time;
+                final double finalTimeReceived = timeReceived;
+                smileJNI.addListener(new SmileJNI.ThreadListener(){
+                    @Override
+                    public void onFinishedRecording() {
+                        try {
+                            String b64 = "";
+                            if((new File(dataPath)).exists()) {
+                                byte[] b = IOUtil.readFile(dataPath);
+                                //final String config = "";
+                                b64 = android.util.Base64.encodeToString(b, android.util.Base64.DEFAULT);
+                            }
+                            else {
+                                b64 = "Error: No audio file is recorded!";
+                            }
+                            PhoneSensorAudio value = new PhoneSensorAudio(finalTime, finalTimeReceived, conf, b64);
+                            dataHandler.addMeasurement(audioTable, deviceId, value);
+                        }catch (IOException e){
+                            e.printStackTrace();
+                        }
+                    }
+                });
+                smileJNI.runOpenSMILE(conf,dataPath, duration);
+            }
+        }, 0, period, TimeUnit.SECONDS);
+        logger.info("SMS log: listener activated and set to a period of {}", period);
+    }
+
+
     @Override
     public void onSensorChanged(SensorEvent event) {
         if ( event.sensor.getType() == Sensor.TYPE_ACCELEROMETER ) {
