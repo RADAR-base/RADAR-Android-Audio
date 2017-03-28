@@ -80,7 +80,7 @@ dependencies {
     // needed to work with testCompile -> kafka-clients
     compile 'com.android.support:appcompat-v7:22.2.0'
     compile 'org.radarcns:radar-commons-android:0.1-alpha.1'
-    compile 'commons-codec:commons-codec:1.10'
+    compile 'org.apache.commons:commons-compress:1.8.1'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.slf4j:slf4j-simple:1.7.21'
