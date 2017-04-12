@@ -97,6 +97,6 @@ public class AudioService extends DeviceService {
     }
 
     private String getSourceIdFromFile() {
-        return PersistentStorage.loadOrStoreUUID(AudioService.class, SOURCE_ID_KEY);
+        return new PersistentStorage(AudioService.class).loadOrStoreUUID(SOURCE_ID_KEY);
     }
 }
