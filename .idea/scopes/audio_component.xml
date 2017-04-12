@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="audio_component" pattern="src:org.radarcns.audio.AudioDeviceManager||src:org.radarcns.audio.AudioDeviceState||src:org.radarcns.audio.AudioService||src:org.radarcns.audio.AudioServiceProvider||src:org.radarcns.audio.AudioTopics" />
+</component>

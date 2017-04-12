@@ -1,3 +1,7 @@
 <component name="CopyrightManager">
-  <settings default="" />
+  <settings default="">
+    <module2copyright>
+      <element module="audio_component" copyright="Apache-2.0-UniPassau-TheHyve" />
+    </module2copyright>
+  </settings>
 </component>
