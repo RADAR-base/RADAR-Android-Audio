@@ -17,10 +17,10 @@
 package org.radarcns.audio;
 
 import android.content.Context;
+import android.media.MediaRecorder;
 import android.support.annotation.NonNull;
 import android.util.Base64;
 
-import org.apache.commons.compress.utils.IOUtils;
 import org.radarcns.android.data.DataCache;
 import org.radarcns.android.data.TableDataHandler;
 import org.radarcns.android.device.DeviceManager;
@@ -30,15 +30,19 @@ import org.radarcns.opensmile.SmileJNI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Date;
+import java.io.InputStream;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPOutputStream;
 
 /** Manages Phone sensors */
 public class AudioDeviceManager implements DeviceManager {
@@ -54,20 +58,36 @@ public class AudioDeviceManager implements DeviceManager {
     private final AudioDeviceState deviceStatus;
 
     private final String deviceName;
+    private final File recordingsDir;
     private boolean isRegistered = false;
     private ScheduledFuture<?> audioReadFuture;
     private final ScheduledExecutorService executor;
 
-    private static final long AUDIO_DURATION_S = 5;
-    private static final long AUDIO_REC_RATE_S = 30;
+    private static final long AUDIO_DURATION_S = 60;
+    private static final long AUDIO_REC_RATE_S = 86400;
     private static final String AUDIO_CONFIG_FILE = "liveinput_android.conf";
+    private final MediaRecorder recorder;
 
     public AudioDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId,
-                              String sourceId, TableDataHandler dataHandler, AudioTopics topics) {
+                              String sourceId, TableDataHandler dataHandler, AudioTopics topics)
+            throws IOException {
         this.dataHandler = dataHandler;
         this.audioTable = dataHandler.getCache(topics.getAudioTopic());
         this.audioService = phoneService;
         this.context = contextIn;
+        this.recorder = new MediaRecorder();
+
+        File serviceDir = new File(context.getExternalCacheDir(), "org.radarcns.audio");
+        recordingsDir = new File(serviceDir, "recordings");
+        if (recordingsDir.exists()) {
+            for (File file : recordingsDir.listFiles()) {
+                if (!file.delete()) {
+                    logger.warn("Failed to remove old recording {}", file);
+                }
+            }
+        } else if (!recordingsDir.mkdirs()) {
+            throw new IOException("Failed to create recording directory");
+        }
 
         this.deviceStatus = new AudioDeviceState();
         this.deviceStatus.getId().setUserId(groupId);
@@ -101,33 +121,54 @@ public class AudioDeviceManager implements DeviceManager {
             audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
-                    logger.info("Setting up audio recording");
-                    final String dataPath = context.getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
-                    //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
-                    SmileJNI smileJNI = new SmileJNI();
-                    final double startTime = System.currentTimeMillis() / 1_000d; //event.timestamp / 1_000_000_000d;
-                    smileJNI.addListener(new SmileJNI.ThreadListener() {
-                        @Override
-                        public void onFinishedRecording() {
-                            logger.info("Finished recording audio to file {}", dataPath);
-                            try {
-                                File dataFile = new File(dataPath);
-                                if (dataFile.exists()) {
-                                    byte[] b = IOUtils.toByteArray(new FileInputStream(dataFile));
-                                    String b64 = Base64.encodeToString(b, Base64.DEFAULT);
-                                    double timeReceived = System.currentTimeMillis() / 1_000d;
-                                    OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
-                                    dataHandler.addMeasurement(audioTable, deviceId, value);
-                                } else {
-                                    logger.warn("Failed to read audio file");
-                                }
-                            } catch (IOException e) {
-                                logger.error("Failed to read audio file");
-                            }
+                    String filename = recordingsDir.getAbsolutePath() + "/" + UUID.randomUUID().toString();
+                    File file = new File(filename);
+                    logger.info("Setting up audio recording {}", filename);
+                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+                    recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+                    recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+                    recorder.setAudioSamplingRate(48000);
+                    recorder.setAudioEncodingBitRate(256000);
+                    recorder.setOutputFile(filename);
+                    try {
+                        recorder.prepare();
+//                        double startTime = System.currentTimeMillis() / 1000d;
+                        recorder.start();   // Recording is now started
+                        Thread.sleep(duration * 1000L);
+                        recorder.stop();
+                        recorder.reset();   // You can reuse the object by going back to setAudioSource() step
+
+                        int length = (int)file.length();
+
+                        logger.info("Reading audio recording {}, size {} bytes", file, length);
+
+                        String b64;
+                        try (InputStream fin = new FileInputStream(file);
+                                DataInputStream input = new DataInputStream(fin)){
+                            byte[] data = new byte[length];
+                            input.readFully(data);
+                            b64 = Base64.encodeToString(data, Base64.DEFAULT);
                         }
-                    });
-                    logger.info("Starting audio recording with configuration {} and duration {}, stored to {}", conf, duration, dataPath);
-                    smileJNI.runOpenSMILE(conf, dataPath, duration);
+
+                        logger.info("Audio recording has Base64 encoding length {}", b64.length());
+
+                        try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+                             GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+                            gzipOut.write(b64.getBytes());
+                            gzipOut.flush();
+                            logger.info("Audio recording compressed Base64 encoding length {}", out.toByteArray().length);
+                        }
+
+//                        double timeReceived = System.currentTimeMillis() / 1000d;
+//                        OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
+//                        dataHandler.addMeasurement(audioTable, deviceId, value);
+                    } catch (IOException | InterruptedException ex) {
+                        logger.error("Failed to retrieve audio", ex);
+                    } finally {
+                        if (!file.delete()) {
+                            logger.warn("Failed to remove old audio recording");
+                        }
+                    }
                 }
             }, 0, period, TimeUnit.SECONDS);
         }
@@ -141,7 +182,9 @@ public class AudioDeviceManager implements DeviceManager {
 
     @Override
     public void close() {
+        logger.info("Shutting down recordings");
         isRegistered = false;
+        recorder.release(); // Now the object cannot be reused
         executor.shutdown();
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
     }

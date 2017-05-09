@@ -30,6 +30,7 @@ import org.radarcns.topic.AvroTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -54,13 +55,17 @@ public class AudioService extends DeviceService {
 
     @Override
     protected DeviceManager createDeviceManager() {
-        return new AudioDeviceManager(this, this, groupId, getSourceId(), getDataHandler(), topics);
+        try {
+            return new AudioDeviceManager(this, this, groupId, getSourceId(), getDataHandler(), topics);
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to construct audio device manager", ex);
+        }
     }
 
     @Override
     protected AudioDeviceState getDefaultState() {
         AudioDeviceState newStatus = new AudioDeviceState();
-        newStatus.setStatus(DeviceStatusListener.Status.CONNECTED);
+        newStatus.setStatus(DeviceStatusListener.Status.DISCONNECTED);
         return newStatus;
     }
 
