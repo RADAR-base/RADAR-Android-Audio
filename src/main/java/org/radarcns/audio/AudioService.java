@@ -60,7 +60,7 @@ public class AudioService extends DeviceService {
     @Override
     protected AudioDeviceState getDefaultState() {
         AudioDeviceState newStatus = new AudioDeviceState();
-        newStatus.setStatus(DeviceStatusListener.Status.CONNECTED);
+        newStatus.setStatus(DeviceStatusListener.Status.DISCONNECTED);
         return newStatus;
     }
 
