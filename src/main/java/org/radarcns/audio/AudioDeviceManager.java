@@ -121,56 +121,60 @@ public class AudioDeviceManager implements DeviceManager {
             audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
-                    String filename = recordingsDir.getAbsolutePath() + "/" + UUID.randomUUID().toString();
-                    File file = new File(filename);
-                    logger.info("Setting up audio recording {}", filename);
-                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-                    recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-                    recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                    recorder.setAudioSamplingRate(48000);
-                    recorder.setAudioEncodingBitRate(256000);
-                    recorder.setOutputFile(filename);
-                    try {
-                        recorder.prepare();
+                    recordData(conf, deviceId, duration);
+                }
+            }, 0, period, TimeUnit.SECONDS);
+        }
+    }
+
+    private void recordData(String conf, MeasurementKey deviceId, long duration) {
+        String filename = recordingsDir.getAbsolutePath() + "/" + UUID.randomUUID().toString();
+        File file = new File(filename);
+        logger.info("Setting up audio recording {}", filename);
+        recorder.setAudioSource(MediaRecorder.AudioSource.VOICE_UPLINK);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        recorder.setAudioSamplingRate(48000);
+        recorder.setAudioEncodingBitRate(256000);
+        recorder.setOutputFile(filename);
+        try {
+            recorder.prepare();
 //                        double startTime = System.currentTimeMillis() / 1000d;
-                        recorder.start();   // Recording is now started
-                        Thread.sleep(duration * 1000L);
-                        recorder.stop();
-                        recorder.reset();   // You can reuse the object by going back to setAudioSource() step
+            recorder.start();   // Recording is now started
+            Thread.sleep(duration * 1000L);
+            recorder.stop();
+            recorder.reset();   // You can reuse the object by going back to setAudioSource() step
 
-                        int length = (int)file.length();
+            int length = (int)file.length();
 
-                        logger.info("Reading audio recording {}, size {} bytes", file, length);
+            logger.info("Reading audio recording {}, size {} bytes", file, length);
 
-                        String b64;
-                        try (InputStream fin = new FileInputStream(file);
-                                DataInputStream input = new DataInputStream(fin)){
-                            byte[] data = new byte[length];
-                            input.readFully(data);
-                            b64 = Base64.encodeToString(data, Base64.DEFAULT);
-                        }
+            String b64;
+            try (InputStream fin = new FileInputStream(file);
+                 DataInputStream input = new DataInputStream(fin)){
+                byte[] data = new byte[length];
+                input.readFully(data);
+                b64 = Base64.encodeToString(data, Base64.DEFAULT);
+            }
 
-                        logger.info("Audio recording has Base64 encoding length {}", b64.length());
+            logger.info("Audio recording has Base64 encoding length {}", b64.length());
 
-                        try (ByteArrayOutputStream out = new ByteArrayOutputStream();
-                             GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
-                            gzipOut.write(b64.getBytes());
-                            gzipOut.flush();
-                            logger.info("Audio recording compressed Base64 encoding length {}", out.toByteArray().length);
-                        }
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+                 GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+                gzipOut.write(b64.getBytes());
+                gzipOut.flush();
+                logger.info("Audio recording compressed Base64 encoding length {}", out.toByteArray().length);
+            }
 
 //                        double timeReceived = System.currentTimeMillis() / 1000d;
 //                        OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
 //                        dataHandler.addMeasurement(audioTable, deviceId, value);
-                    } catch (IOException | InterruptedException ex) {
-                        logger.error("Failed to retrieve audio", ex);
-                    } finally {
-                        if (!file.delete()) {
-                            logger.warn("Failed to remove old audio recording");
-                        }
-                    }
-                }
-            }, 0, period, TimeUnit.SECONDS);
+        } catch (IOException | InterruptedException ex) {
+            logger.error("Failed to retrieve audio", ex);
+        } finally {
+            if (!file.delete()) {
+                logger.warn("Failed to remove old audio recording");
+            }
         }
     }
 
