@@ -16,7 +16,10 @@
 
 package org.radarcns.audio;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.MediaRecorder;
 import android.support.annotation.NonNull;
 import android.util.Base64;
@@ -36,13 +39,18 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPOutputStream;
+
+import static android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED;
+import static android.telephony.TelephonyManager.EXTRA_STATE;
+import static android.telephony.TelephonyManager.EXTRA_STATE_OFFHOOK;
 
 /** Manages Phone sensors */
 public class AudioDeviceManager implements DeviceManager {
@@ -59,6 +67,8 @@ public class AudioDeviceManager implements DeviceManager {
 
     private final String deviceName;
     private final File recordingsDir;
+    private final BroadcastReceiver phoneReceiver;
+    private final AtomicBoolean isRecording;
     private boolean isRegistered = false;
     private ScheduledFuture<?> audioReadFuture;
     private final ScheduledExecutorService executor;
@@ -95,6 +105,21 @@ public class AudioDeviceManager implements DeviceManager {
 
         this.deviceName = android.os.Build.MODEL;
         updateStatus(DeviceStatusListener.Status.READY);
+        this.isRecording = new AtomicBoolean(false);
+        this.phoneReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.getAction().equals(ACTION_PHONE_STATE_CHANGED)
+                        && Objects.equals(intent.getStringExtra(EXTRA_STATE), EXTRA_STATE_OFFHOOK)) {
+                    executor.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            recordData("", getState().getId(), 15);
+                        }
+                    });
+                }
+            }
+        };
 
         // Scheduler TODO: run executor with existing thread pool/factory
         executor = Executors.newSingleThreadScheduledExecutor();
@@ -107,6 +132,9 @@ public class AudioDeviceManager implements DeviceManager {
 
         isRegistered = true;
         updateStatus(DeviceStatusListener.Status.CONNECTED);
+
+        IntentFilter filter = new IntentFilter(ACTION_PHONE_STATE_CHANGED);
+        context.registerReceiver(phoneReceiver, filter);
     }
 
     private void setAudioUpdateRate(final long period, final long duration, final String configFile) {
@@ -118,16 +146,19 @@ public class AudioDeviceManager implements DeviceManager {
             if (audioReadFuture != null) {
                 audioReadFuture.cancel(false);
             }
-            audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    recordData(conf, deviceId, duration);
-                }
-            }, 0, period, TimeUnit.SECONDS);
+//            audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
+//                @Override
+//                public void run() {
+//                    recordData(conf, deviceId, duration);
+//                }
+//            }, 0, period, TimeUnit.SECONDS);
         }
     }
 
     private void recordData(String conf, MeasurementKey deviceId, long duration) {
+        if (isRecording.getAndSet(true)) {
+            return;
+        }
         String filename = recordingsDir.getAbsolutePath() + "/" + UUID.randomUUID().toString();
         File file = new File(filename);
         logger.info("Setting up audio recording {}", filename);
@@ -172,11 +203,14 @@ public class AudioDeviceManager implements DeviceManager {
         } catch (IOException | InterruptedException ex) {
             logger.error("Failed to retrieve audio", ex);
         } finally {
+            isRecording.set(false);
             if (!file.delete()) {
                 logger.warn("Failed to remove old audio recording");
             }
         }
     }
+
+
 
     @Override
     public boolean isClosed() {
@@ -188,6 +222,7 @@ public class AudioDeviceManager implements DeviceManager {
     public void close() {
         logger.info("Shutting down recordings");
         isRegistered = false;
+        context.unregisterReceiver(phoneReceiver);
         recorder.release(); // Now the object cannot be reused
         executor.shutdown();
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
