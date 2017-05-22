@@ -20,9 +20,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.MediaPlayer;
 import android.media.MediaRecorder;
+import android.net.Uri;
 import android.support.annotation.NonNull;
-import android.util.Base64;
 
 import org.radarcns.android.data.DataCache;
 import org.radarcns.android.data.TableDataHandler;
@@ -33,12 +34,8 @@ import org.radarcns.opensmile.SmileJNI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -46,7 +43,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.zip.GZIPOutputStream;
 
 import static android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED;
 import static android.telephony.TelephonyManager.EXTRA_STATE;
@@ -159,10 +155,10 @@ public class AudioDeviceManager implements DeviceManager {
         if (isRecording.getAndSet(true)) {
             return;
         }
-        String filename = recordingsDir.getAbsolutePath() + "/" + UUID.randomUUID().toString();
+        String filename = recordingsDir.getAbsolutePath() + "/" + UUID.randomUUID().toString() + ".mp4";
         File file = new File(filename);
         logger.info("Setting up audio recording {}", filename);
-        recorder.setAudioSource(MediaRecorder.AudioSource.VOICE_UPLINK);
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
         recorder.setAudioSamplingRate(48000);
@@ -180,22 +176,32 @@ public class AudioDeviceManager implements DeviceManager {
 
             logger.info("Reading audio recording {}, size {} bytes", file, length);
 
-            String b64;
-            try (InputStream fin = new FileInputStream(file);
-                 DataInputStream input = new DataInputStream(fin)){
-                byte[] data = new byte[length];
-                input.readFully(data);
-                b64 = Base64.encodeToString(data, Base64.DEFAULT);
-            }
-
-            logger.info("Audio recording has Base64 encoding length {}", b64.length());
-
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream();
-                 GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
-                gzipOut.write(b64.getBytes());
-                gzipOut.flush();
-                logger.info("Audio recording compressed Base64 encoding length {}", out.toByteArray().length);
-            }
+            MediaPlayer mp = MediaPlayer.create(context, Uri.fromFile(file));
+            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                @Override
+                public void onCompletion(MediaPlayer mp) {
+                    mp.release();
+                }
+            });
+            mp.start();
+//
+//
+//            String b64;
+//            try (InputStream fin = new FileInputStream(file);
+//                 DataInputStream input = new DataInputStream(fin)){
+//                byte[] data = new byte[length];
+//                input.readFully(data);
+//                b64 = Base64.encodeToString(data, Base64.DEFAULT);
+//            }
+//
+//            logger.info("Audio recording has Base64 encoding length {}", b64.length());
+//
+//            try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+//                 GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
+//                gzipOut.write(b64.getBytes());
+//                gzipOut.flush();
+//                logger.info("Audio recording compressed Base64 encoding length {}", out.toByteArray().length);
+//            }
 
 //                        double timeReceived = System.currentTimeMillis() / 1000d;
 //                        OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
