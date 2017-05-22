@@ -22,7 +22,6 @@ import org.apache.avro.specific.SpecificRecord;
 import org.radarcns.android.RadarConfiguration;
 import org.radarcns.android.device.DeviceManager;
 import org.radarcns.android.device.DeviceService;
-import org.radarcns.android.device.DeviceStatusListener;
 import org.radarcns.android.device.DeviceTopics;
 import org.radarcns.android.util.PersistentStorage;
 import org.radarcns.key.MeasurementKey;
@@ -54,14 +53,12 @@ public class AudioService extends DeviceService {
 
     @Override
     protected DeviceManager createDeviceManager() {
-        return new AudioDeviceManager(this, this, groupId, getSourceId(), getDataHandler(), topics);
+        return new AudioDeviceManager(this, this, getUserId(), getSourceId(), getDataHandler(), topics);
     }
 
     @Override
     protected AudioDeviceState getDefaultState() {
-        AudioDeviceState newStatus = new AudioDeviceState();
-        newStatus.setStatus(DeviceStatusListener.Status.CONNECTED);
-        return newStatus;
+        return new AudioDeviceState();
     }
 
     @Override
@@ -87,16 +84,8 @@ public class AudioService extends DeviceService {
 
     public String getSourceId() {
         if (sourceId == null) {
-            setSourceId(getSourceIdFromFile());
+            sourceId = new PersistentStorage(AudioService.class).loadOrStoreUUID(SOURCE_ID_KEY);
         }
         return sourceId;
-    }
-
-    public void setSourceId(String sourceId) {
-        this.sourceId = sourceId;
-    }
-
-    private String getSourceIdFromFile() {
-        return new PersistentStorage(AudioService.class).loadOrStoreUUID(SOURCE_ID_KEY);
     }
 }
