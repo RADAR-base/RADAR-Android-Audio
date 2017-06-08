@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -49,7 +50,7 @@ public class SmileJNI {
     String recordingPath;
     ThreadListener listener = null;
     private static boolean isRecording = false;
-    public static boolean allowRecording = false;
+    public static boolean allowRecording = true;
     public static String lastRecording = "";
 
 
@@ -190,7 +191,7 @@ public class SmileJNI {
             String out = confcach + filename;
             File outFile = new File(out);
 
-            try (FileInputStream in = assetManager.openFd(filename).createInputStream();
+            try (InputStream in = assetManager.open(filename);
                  FileOutputStream outst = new FileOutputStream(outFile)) {
                 IOUtils.copy(in, outst);
             } catch(IOException e) {

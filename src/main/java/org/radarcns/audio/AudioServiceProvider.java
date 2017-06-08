@@ -16,8 +16,10 @@
 
 package org.radarcns.audio;
 
+import android.os.Bundle;
 import android.os.Parcelable;
 
+import org.radarcns.android.RadarConfiguration;
 import org.radarcns.android.device.DeviceServiceProvider;
 
 import java.util.Arrays;
@@ -27,6 +29,19 @@ import static android.Manifest.permission.RECORD_AUDIO;
 import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
 public class AudioServiceProvider extends DeviceServiceProvider<AudioDeviceState> {
+
+    public static final String AUDIO_DURATION_S = "audio_duration";
+    public  static final String AUDIO_RECORD_RATE_S = "audio_record_rate";
+    public  static final String AUDIO_CONFIG_FILE = "audio_config_file";
+
+    protected void configure(Bundle bundle) {
+        super.configure(bundle);
+        RadarConfiguration config = getConfig();
+        bundle.putLong(AUDIO_DURATION_S, config.getLong(AUDIO_DURATION_S, 5L));  // default: 5 second
+        bundle.putLong(AUDIO_RECORD_RATE_S, config.getLong(AUDIO_RECORD_RATE_S, 180L));  // default: 180 second
+        bundle.putString(AUDIO_CONFIG_FILE, config.getString(AUDIO_CONFIG_FILE, "liveinput_android.conf"));  // default: "liveinput_android.conf"
+    }
+
     @Override
     public Class<?> getServiceClass() {
         return AudioService.class;

@@ -58,12 +58,12 @@ public class AudioDeviceManager implements DeviceManager {
     private ScheduledFuture<?> audioReadFuture;
     private final ScheduledExecutorService executor;
 
-    private static final long AUDIO_DURATION_S = 5;
-    private static final long AUDIO_REC_RATE_S = 30;
-    private static final String AUDIO_CONFIG_FILE = "liveinput_android.conf";
+    private long AUDIO_DURATION_S;// = 5;
+    private long AUDIO_REC_RATE_S;// = 30;
+    private String AUDIO_CONFIG_FILE;// = "liveinput_android.conf";
 
     public AudioDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId,
-                              String sourceId, TableDataHandler dataHandler, AudioTopics topics) {
+                              String sourceId, TableDataHandler dataHandler, AudioTopics topics, long AUDIO_DURATION_MS, long AUDIO_RECORD_RATE_MS, String AUDIO_CONFIG_FILE) {
         this.dataHandler = dataHandler;
         this.audioTable = dataHandler.getCache(topics.getAudioTopic());
         this.audioService = phoneService;
@@ -72,6 +72,9 @@ public class AudioDeviceManager implements DeviceManager {
         this.deviceStatus = new AudioDeviceState();
         this.deviceStatus.getId().setUserId(groupId);
         this.deviceStatus.getId().setSourceId(sourceId);
+        this.setAudioDuration(AUDIO_DURATION_MS);
+        this.setAudioRecordRate(AUDIO_RECORD_RATE_MS);
+        this.setAudioConfigFile(AUDIO_CONFIG_FILE);
 
         this.deviceName = android.os.Build.MODEL;
         updateStatus(DeviceStatusListener.Status.READY);
@@ -179,5 +182,17 @@ public class AudioDeviceManager implements DeviceManager {
     @Override
     public int hashCode() {
         return deviceStatus.getId().hashCode();
+    }
+
+    public void setAudioDuration(long audioDurationMs) {
+        AUDIO_DURATION_S = audioDurationMs;
+    }
+
+    public void setAudioRecordRate(long audioRecordRateMs) {
+        AUDIO_REC_RATE_S = audioRecordRateMs;
+    }
+
+    public void setAudioConfigFile(String audioConfigFile) {
+        AUDIO_CONFIG_FILE = audioConfigFile;
     }
 }
