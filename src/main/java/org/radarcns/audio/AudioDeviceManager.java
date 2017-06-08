@@ -58,9 +58,9 @@ public class AudioDeviceManager implements DeviceManager {
     private ScheduledFuture<?> audioReadFuture;
     private final ScheduledExecutorService executor;
 
-    private long AUDIO_DURATION_S;// = 5;
-    private long AUDIO_REC_RATE_S;// = 30;
-    private String AUDIO_CONFIG_FILE;// = "liveinput_android.conf";
+    private long AUDIO_DURATION_S;
+    private long AUDIO_REC_RATE_S;
+    private String AUDIO_CONFIG_FILE;
 
     public AudioDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId,
                               String sourceId, TableDataHandler dataHandler, AudioTopics topics, long AUDIO_DURATION_MS, long AUDIO_RECORD_RATE_MS, String AUDIO_CONFIG_FILE) {
