@@ -43,6 +43,9 @@ public class AudioService extends DeviceService {
     private AudioTopics topics;
     private String groupId;
     private String sourceId;
+    private long audioDurationS;
+    private long audioRecordRateS;
+    private String audioConfigFile;
 
     @Override
     public void onCreate() {
@@ -54,7 +57,7 @@ public class AudioService extends DeviceService {
 
     @Override
     protected DeviceManager createDeviceManager() {
-        return new AudioDeviceManager(this, this, groupId, getSourceId(), getDataHandler(), topics);
+        return new AudioDeviceManager(this, this, groupId, getSourceId(), getDataHandler(), topics, audioDurationS, audioRecordRateS, audioConfigFile);
     }
 
     @Override
@@ -82,6 +85,16 @@ public class AudioService extends DeviceService {
         super.onInvocation(bundle);
         if (groupId == null) {
             groupId = RadarConfiguration.getStringExtra(bundle, RadarConfiguration.DEFAULT_GROUP_ID_KEY);
+        }
+        audioDurationS = bundle.getLong(AudioServiceProvider.AUDIO_DURATION_S);
+        audioRecordRateS = bundle.getLong(AudioServiceProvider.AUDIO_RECORD_RATE_S);
+        audioConfigFile = bundle.getString(AudioServiceProvider.AUDIO_CONFIG_FILE);
+
+        AudioDeviceManager audioManager = (AudioDeviceManager) getDeviceManager();
+        if (audioManager != null) {
+            audioManager.setAudioDuration(audioDurationS);
+            audioManager.setAudioRecordRate(audioRecordRateS);
+            audioManager.setAudioConfigFile(audioConfigFile);
         }
     }
 
