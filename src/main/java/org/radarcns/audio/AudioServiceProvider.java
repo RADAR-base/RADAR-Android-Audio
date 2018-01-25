@@ -17,9 +17,10 @@
 package org.radarcns.audio;
 
 import android.os.Bundle;
-import android.os.Parcelable;
+import android.support.annotation.NonNull;
 
 import org.radarcns.android.RadarConfiguration;
+import org.radarcns.android.device.BaseDeviceState;
 import org.radarcns.android.device.DeviceServiceProvider;
 
 import java.util.Arrays;
@@ -28,8 +29,7 @@ import java.util.List;
 import static android.Manifest.permission.RECORD_AUDIO;
 import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
-public class AudioServiceProvider extends DeviceServiceProvider<AudioDeviceState> {
-
+public class AudioServiceProvider extends DeviceServiceProvider<BaseDeviceState> {
     public static final String AUDIO_DURATION_S = "audio_duration";
     public  static final String AUDIO_RECORD_RATE_S = "audio_record_rate";
     public  static final String AUDIO_CONFIG_FILE = "audio_config_file";
@@ -48,17 +48,30 @@ public class AudioServiceProvider extends DeviceServiceProvider<AudioDeviceState
     }
 
     @Override
-    public Parcelable.Creator<AudioDeviceState> getStateCreator() {
-        return AudioDeviceState.CREATOR;
-    }
-
-    @Override
     public String getDisplayName() {
-        return getActivity().getString(R.string.header_audio_status);
+        return getRadarService().getString(R.string.header_audio_status);
     }
 
     @Override
     public List<String> needsPermissions() {
         return Arrays.asList(RECORD_AUDIO, WRITE_EXTERNAL_STORAGE);
+    }
+
+    @NonNull
+    @Override
+    public String getDeviceProducer() {
+        return "RADAR";
+    }
+
+    @NonNull
+    @Override
+    public String getDeviceModel() {
+        return "Audio";
+    }
+
+    @NonNull
+    @Override
+    public String getVersion() {
+        return BuildConfig.VERSION_NAME;
     }
 }
