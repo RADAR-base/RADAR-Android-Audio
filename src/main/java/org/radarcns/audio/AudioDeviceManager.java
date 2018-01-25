@@ -16,17 +16,16 @@
 
 package org.radarcns.audio;
 
-import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.Base64;
 
 import org.apache.commons.compress.utils.IOUtils;
-import org.radarcns.android.data.DataCache;
-import org.radarcns.android.data.TableDataHandler;
-import org.radarcns.android.device.DeviceManager;
+import org.radarcns.android.device.AbstractDeviceManager;
+import org.radarcns.android.device.BaseDeviceState;
 import org.radarcns.android.device.DeviceStatusListener;
-import org.radarcns.key.MeasurementKey;
+import org.radarcns.kafka.ObservationKey;
 import org.radarcns.opensmile.SmileJNI;
+import org.radarcns.topic.AvroTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,40 +40,25 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /** Manages Phone sensors */
-public class AudioDeviceManager implements DeviceManager {
+public class AudioDeviceManager extends AbstractDeviceManager<AudioService, BaseDeviceState> {
     private static final Logger logger = LoggerFactory.getLogger(AudioDeviceManager.class);
 
-    private final TableDataHandler dataHandler;
-    private final Context context;
+    private final AvroTopic<ObservationKey, OpenSmile2PhoneAudio> audioTopic;
 
-    private final DeviceStatusListener audioService;
-
-    private final DataCache<MeasurementKey, OpenSmile2PhoneAudio> audioTable;
-
-    private final AudioDeviceState deviceStatus;
-
-    private final String deviceName;
-    private boolean isRegistered = false;
     private ScheduledFuture<?> audioReadFuture;
     private final ScheduledExecutorService executor;
 
-    private static final long AUDIO_DURATION_S = 5;
-    private static final long AUDIO_REC_RATE_S = 30;
-    private static final String AUDIO_CONFIG_FILE = "liveinput_android.conf";
+    private long AUDIO_DURATION_S;
+    private long AUDIO_REC_RATE_S;
+    private String AUDIO_CONFIG_FILE;
 
-    public AudioDeviceManager(Context contextIn, DeviceStatusListener phoneService, String groupId,
-                              String sourceId, TableDataHandler dataHandler, AudioTopics topics) {
-        this.dataHandler = dataHandler;
-        this.audioTable = dataHandler.getCache(topics.getAudioTopic());
-        this.audioService = phoneService;
-        this.context = contextIn;
+    public AudioDeviceManager(AudioService service, long AUDIO_DURATION_MS, long AUDIO_RECORD_RATE_MS, String AUDIO_CONFIG_FILE) {
+        super(service);
+        this.audioTopic = createTopic("android_processed_audio", OpenSmile2PhoneAudio.class);
 
-        this.deviceStatus = new AudioDeviceState();
-        this.deviceStatus.getId().setUserId(groupId);
-        this.deviceStatus.getId().setSourceId(sourceId);
-
-        this.deviceName = android.os.Build.MODEL;
-        updateStatus(DeviceStatusListener.Status.READY);
+        this.setAudioDuration(AUDIO_DURATION_MS);
+        this.setAudioRecordRate(AUDIO_RECORD_RATE_MS);
+        this.setAudioConfigFile(AUDIO_CONFIG_FILE);
 
         // Scheduler TODO: run executor with existing thread pool/factory
         executor = Executors.newSingleThreadScheduledExecutor();
@@ -83,16 +67,14 @@ public class AudioDeviceManager implements DeviceManager {
     @Override
     public void start(@NonNull final Set<String> acceptableIds) {
         // Audio recording
+        updateStatus(DeviceStatusListener.Status.READY);
         setAudioUpdateRate(AUDIO_REC_RATE_S,AUDIO_DURATION_S,AUDIO_CONFIG_FILE);
-
-        isRegistered = true;
         updateStatus(DeviceStatusListener.Status.CONNECTED);
     }
 
     private void setAudioUpdateRate(final long period, final long duration, final String configFile) {
-        SmileJNI.prepareOpenSMILE(context);
-        final String conf = this.context.getCacheDir() + "/" + configFile;//"/liveinput_android.conf";
-        final MeasurementKey deviceId = deviceStatus.getId();
+        SmileJNI.prepareOpenSMILE(getService());
+        final String conf = getService().getCacheDir() + "/" + configFile;//"/liveinput_android.conf";
 
         synchronized (this) {
             if (audioReadFuture != null) {
@@ -101,8 +83,9 @@ public class AudioDeviceManager implements DeviceManager {
             audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
+                    updateStatus(DeviceStatusListener.Status.CONNECTED);
                     logger.info("Setting up audio recording");
-                    final String dataPath = context.getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
+                    final String dataPath = getService().getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
                     //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
                     SmileJNI smileJNI = new SmileJNI();
                     final double startTime = System.currentTimeMillis() / 1_000d; //event.timestamp / 1_000_000_000d;
@@ -117,7 +100,8 @@ public class AudioDeviceManager implements DeviceManager {
                                     String b64 = Base64.encodeToString(b, Base64.DEFAULT);
                                     double timeReceived = System.currentTimeMillis() / 1_000d;
                                     OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
-                                    dataHandler.addMeasurement(audioTable, deviceId, value);
+                                    send(audioTopic, value);
+                                    updateStatus(DeviceStatusListener.Status.READY);
                                 } else {
                                     logger.warn("Failed to read audio file");
                                 }
@@ -134,50 +118,23 @@ public class AudioDeviceManager implements DeviceManager {
     }
 
     @Override
-    public boolean isClosed() {
-        return !isRegistered;
-    }
-
-
-    @Override
-    public void close() {
-        isRegistered = false;
+    public void close() throws IOException {
+        if (isClosed()) {
+            return;
+        }
         executor.shutdown();
-        updateStatus(DeviceStatusListener.Status.DISCONNECTED);
+        super.close();
     }
 
-    @Override
-    public String getName() {
-        return deviceName;
+    public void setAudioDuration(long audioDurationMs) {
+        AUDIO_DURATION_S = audioDurationMs;
     }
 
-    @Override
-    public AudioDeviceState getState() {
-        return deviceStatus;
+    public void setAudioRecordRate(long audioRecordRateMs) {
+        AUDIO_REC_RATE_S = audioRecordRateMs;
     }
 
-    private synchronized void updateStatus(DeviceStatusListener.Status status) {
-        this.deviceStatus.setStatus(status);
-        this.audioService.deviceStatusUpdated(this, status);
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (other == this) {
-            return true;
-        }
-        if (other == null
-                || !getClass().equals(other.getClass())
-                || deviceStatus.getId().getSourceId() == null) {
-            return false;
-        }
-
-        AudioDeviceManager otherDevice = ((AudioDeviceManager) other);
-        return deviceStatus.getId().equals((otherDevice.deviceStatus.getId()));
-    }
-
-    @Override
-    public int hashCode() {
-        return deviceStatus.getId().hashCode();
+    public void setAudioConfigFile(String audioConfigFile) {
+        AUDIO_CONFIG_FILE = audioConfigFile;
     }
 }
