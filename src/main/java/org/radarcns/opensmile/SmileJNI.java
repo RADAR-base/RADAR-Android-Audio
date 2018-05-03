@@ -30,16 +30,19 @@ import java.util.TimerTask;
 
 public class SmileJNI {
     public static final String[] assets = {
-            "liveinput_android.conf",
-            "raw_audio_bin.conf",
-            "GenevaExtended_func.conf",
-            "GenevaExtended_lld.conf"
-            //"BufferModeRb.conf.inc",
-            //"features.conf.inc",
-            //"messages.conf.inc",
-            //"BufferModeLive.conf.inc",
-            //"music_features.conf.inc",
-            //"FrameModeMoodWin.conf.inc"
+            "ComParE_2016.conf",
+            "ComParE_2016_core.func.conf.inc",
+            "ComParE_2016_core.lld.conf.inc",
+            "shared/arff_targets.conf.inc",
+            "shared/BufferMode.conf.inc",
+            "shared/BufferModeLive.conf.inc",
+            "shared/BufferModeRb.conf.inc",
+            "shared/BufferModeRbLag.conf.inc",
+            "shared/FrameModeFunctionals.conf.inc",
+            "shared/FrameModeFunctionalsLive.conf.inc",
+            "shared/standard_data_output.conf.inc",
+            "shared/standard_data_output_lldonly.conf.inc",
+            "shared/standard_wave_input.conf.inc"
     };
 
     public interface ThreadListener {
@@ -190,6 +193,7 @@ public class SmileJNI {
         for(String filename : assets) {
             String out = confcach + filename;
             File outFile = new File(out);
+            outFile.getParentFile().mkdirs();
 
             try (InputStream in = assetManager.open(filename);
                  FileOutputStream outst = new FileOutputStream(outFile)) {
