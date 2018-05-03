@@ -5,9 +5,12 @@ the phone's microphone, extracts features from it, and sends those features.
 
 # New Default RadarConfiguration Parameters #
 
-- "audio_duration": 15
-- "audio_record_rate": 3600
-- "audio_config_file": "ComParE_2016.conf"
+
+| Parameter | Type | Default | Description |
+| --------- | ---- | ------- | ----------- |
+| `audio_duration` | int (seconds) | 15 | Length in seconds of the audio recording when it started.  |
+| `audio_record_rate` | int (seconds) | 3600 | Default interval between two consecutive audio recordings.  |
+| `audio_config_file` | string (filepath) | "ComParE_2016.conf" |  Path to openSMILE configuration file. |
 
 Those variables are defined in the following file:
 
