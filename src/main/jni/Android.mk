@@ -14,7 +14,7 @@ include $(CLEAR_VARS)
 ############ you might need to change this if you move the
 ############ android studio project somewhere else, i.e.
 ############ outside of the opensmile root folder
-OPENSMILE_ROOT := /home/sag/Softwares/opensmile-2.3.0
+OPENSMILE_ROOT := /data/code/opensmile-2.3.0
 ##########################################################
 
 OPENSMILE_INCLUDES_DIR := $(OPENSMILE_ROOT)/src/include

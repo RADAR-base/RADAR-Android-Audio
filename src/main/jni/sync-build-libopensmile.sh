@@ -5,12 +5,14 @@
 # Copyright (c) audEERING. All rights reserved.
 # See the file COPYING for details on license terms.
 
-ARCH="armeabi";
+#ARCH="armeabi";
+ARCH="arm64-v8a"
+#ARCH="armeabi-v7a"
 
 ############ you might need to change this if you move the
 ############ android studio project somewhere else, i.e.
 ############ outside of the opensmile root folder
-OPENSMILE_DIR="/home/sag/work/opensmile-2.3.0_floatsink_radar"
+OPENSMILE_DIR="/data/code/opensmile-2.3.0/"
 ##########################################################
 
 PWDD=`pwd`;
