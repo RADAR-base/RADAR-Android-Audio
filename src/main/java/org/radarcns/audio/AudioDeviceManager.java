@@ -25,6 +25,7 @@ import org.radarcns.android.device.BaseDeviceState;
 import org.radarcns.android.device.DeviceStatusListener;
 import org.radarcns.kafka.ObservationKey;
 import org.radarcns.opensmile.SmileJNI;
+import org.radarcns.passive.opensmile.OpenSmile2PhoneAudio;
 import org.radarcns.topic.AvroTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +53,7 @@ public class AudioDeviceManager extends AbstractDeviceManager<AudioService, Base
     private long AUDIO_REC_RATE_S;
     private String AUDIO_CONFIG_FILE;
 
-    public AudioDeviceManager(AudioService service, long AUDIO_DURATION_MS, long AUDIO_RECORD_RATE_MS, String AUDIO_CONFIG_FILE) {
+    AudioDeviceManager(AudioService service, long AUDIO_DURATION_MS, long AUDIO_RECORD_RATE_MS, String AUDIO_CONFIG_FILE) {
         super(service);
         this.audioTopic = createTopic("android_processed_audio", OpenSmile2PhoneAudio.class);
 
@@ -80,39 +81,33 @@ public class AudioDeviceManager extends AbstractDeviceManager<AudioService, Base
             if (audioReadFuture != null) {
                 audioReadFuture.cancel(false);
             }
-            audioReadFuture = executor.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    updateStatus(DeviceStatusListener.Status.CONNECTED);
-                    logger.info("Setting up audio recording");
-                    final String dataPath = getService().getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
-                    //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
-                    SmileJNI smileJNI = new SmileJNI();
-                    final double startTime = System.currentTimeMillis() / 1_000d; //event.timestamp / 1_000_000_000d;
-                    smileJNI.addListener(new SmileJNI.ThreadListener() {
-                        @Override
-                        public void onFinishedRecording() {
-                            logger.info("Finished recording audio to file {}", dataPath);
-                            try {
-                                File dataFile = new File(dataPath);
-                                if (dataFile.exists()) {
-                                    byte[] b = IOUtils.toByteArray(new FileInputStream(dataFile));
-                                    String b64 = Base64.encodeToString(b, Base64.DEFAULT);
-                                    double timeReceived = System.currentTimeMillis() / 1_000d;
-                                    OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
-                                    send(audioTopic, value);
-                                    updateStatus(DeviceStatusListener.Status.READY);
-                                } else {
-                                    logger.warn("Failed to read audio file");
-                                }
-                            } catch (IOException e) {
-                                logger.error("Failed to read audio file");
-                            }
+            audioReadFuture = executor.scheduleAtFixedRate(() -> {
+                updateStatus(DeviceStatusListener.Status.CONNECTED);
+                logger.info("Setting up audio recording");
+                final String dataPath = getService().getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
+                //openSMILE.clas.SMILExtractJNI(conf,1,dataPath);
+                SmileJNI smileJNI = new SmileJNI();
+                final double startTime = System.currentTimeMillis() / 1_000d; //event.timestamp / 1_000_000_000d;
+                smileJNI.addListener(() -> {
+                    logger.info("Finished recording audio to file {}", dataPath);
+                    try {
+                        File dataFile = new File(dataPath);
+                        if (dataFile.exists()) {
+                            byte[] b = IOUtils.toByteArray(new FileInputStream(dataFile));
+                            String b64 = Base64.encodeToString(b, Base64.DEFAULT);
+                            double timeReceived = System.currentTimeMillis() / 1_000d;
+                            OpenSmile2PhoneAudio value = new OpenSmile2PhoneAudio(startTime, timeReceived, conf, b64);
+                            send(audioTopic, value);
+                            updateStatus(DeviceStatusListener.Status.READY);
+                        } else {
+                            logger.warn("Failed to read audio file");
                         }
-                    });
-                    logger.info("Starting audio recording with configuration {} and duration {}, stored to {}", conf, duration, dataPath);
-                    smileJNI.runOpenSMILE(conf, dataPath, duration);
-                }
+                    } catch (IOException e) {
+                        logger.error("Failed to read audio file");
+                    }
+                });
+                logger.info("Starting audio recording with configuration {} and duration {}, stored to {}", conf, duration, dataPath);
+                smileJNI.runOpenSMILE(conf, dataPath, duration);
             }, 0, period, TimeUnit.SECONDS);
         }
     }

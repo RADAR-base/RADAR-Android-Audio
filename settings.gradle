@@ -1,0 +1,2 @@
+rootProject.name = 'radar-android-audio'
+enableFeaturePreview('STABLE_PUBLISHING')
