@@ -20,7 +20,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.1.4'
+        classpath 'com.android.tools.build:gradle:3.2.0'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.1'
         classpath 'digital.wup:android-maven-publish:3.6.1'
     }
@@ -32,14 +32,14 @@ apply plugin: 'maven-publish'
 apply plugin: 'digital.wup.android-maven-publish'
 
 android {
-    compileSdkVersion 27
-    buildToolsVersion '27.0.3'
+    compileSdkVersion 28
+    buildToolsVersion '28.0.2'
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 27
+        targetSdkVersion 28
         versionCode 1
-        versionName '0.1-alpha.1'
+        versionName '0.1-alpha.2'
 
         ndk {
             moduleName 'radar-android-audio'
@@ -103,8 +103,7 @@ repositories {
 }
 
 dependencies {
-    // needed to work with testCompile -> kafka-clients
-    api 'org.radarcns:radar-commons-android:0.6.3'
+    api 'org.radarcns:radar-commons-android:0.7.0'
     implementation 'org.radarcns:radar-schemas-commons:0.4.0'
     implementation 'org.apache.commons:commons-compress:1.16'
 
