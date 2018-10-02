@@ -60,7 +60,7 @@ public class AudioServiceProvider extends DeviceServiceProvider<BaseDeviceState>
     @NonNull
     @Override
     public String getDeviceProducer() {
-        return "RADAR";
+        return "OpenSmile";
     }
 
     @NonNull
