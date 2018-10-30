@@ -16,6 +16,7 @@
 
 package org.radarcns.audio;
 
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 
@@ -24,6 +25,7 @@ import org.radarcns.android.device.BaseDeviceState;
 import org.radarcns.android.device.DeviceServiceProvider;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static android.Manifest.permission.RECORD_AUDIO;
@@ -52,9 +54,16 @@ public class AudioServiceProvider extends DeviceServiceProvider<BaseDeviceState>
         return getRadarService().getString(R.string.header_audio_status);
     }
 
+    @NonNull
     @Override
     public List<String> needsPermissions() {
         return Arrays.asList(RECORD_AUDIO, WRITE_EXTERNAL_STORAGE);
+    }
+
+    @NonNull
+    @Override
+    public List<String> needsFeatures() {
+        return Collections.singletonList(PackageManager.FEATURE_MICROPHONE);
     }
 
     @NonNull

@@ -20,7 +20,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.2.0'
+        classpath 'com.android.tools.build:gradle:3.2.1'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.1'
         classpath 'digital.wup:android-maven-publish:3.6.1'
     }
@@ -33,13 +33,13 @@ apply plugin: 'digital.wup.android-maven-publish'
 
 android {
     compileSdkVersion 28
-    buildToolsVersion '28.0.2'
+    buildToolsVersion '28.0.3'
 
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 28
         versionCode 1
-        versionName '0.1-alpha.2'
+        versionName '0.1.0-SNAPSHOT'
 
         ndk {
             moduleName 'radar-android-audio'
@@ -103,7 +103,7 @@ repositories {
 }
 
 dependencies {
-    api 'org.radarcns:radar-commons-android:0.7.0'
+    api 'org.radarcns:radar-commons-android:0.8.0'
     implementation 'org.radarcns:radar-schemas-commons:0.4.0'
     implementation 'org.apache.commons:commons-compress:1.16'
 
@@ -223,5 +223,5 @@ bintray {
 bintrayUpload.dependsOn 'assembleRelease'
 
 wrapper {
-    gradleVersion '4.9'
+    gradleVersion '4.10.2'
 }
