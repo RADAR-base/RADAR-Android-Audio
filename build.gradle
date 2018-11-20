@@ -21,7 +21,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.2.1'
-        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.1'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
         classpath 'digital.wup:android-maven-publish:3.6.1'
     }
 }
@@ -103,8 +103,8 @@ repositories {
 }
 
 dependencies {
-    api 'org.radarcns:radar-commons-android:0.8.0'
-    implementation 'org.radarcns:radar-schemas-commons:0.4.0'
+    api 'org.radarcns:radar-commons-android:0.9.1'
+    implementation 'org.radarcns:radar-schemas-commons:0.4.1'
     implementation 'org.apache.commons:commons-compress:1.16'
 
     testImplementation 'junit:junit:4.12'
