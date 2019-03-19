@@ -16,11 +16,12 @@
 
 package org.radarcns.audio;
 
-import android.os.Bundle;
 import android.support.annotation.NonNull;
 
-import org.radarcns.android.device.BaseDeviceState;
-import org.radarcns.android.device.DeviceService;
+import org.radarbase.android.RadarConfiguration;
+import org.radarbase.android.device.BaseDeviceState;
+import org.radarbase.android.device.DeviceManager;
+import org.radarbase.android.device.DeviceService;
 
 /**
  * A service that manages the phone sensor manager and a TableDataHandler to send store the data of
@@ -28,33 +29,27 @@ import org.radarcns.android.device.DeviceService;
  */
 
 public class AudioService extends DeviceService<BaseDeviceState> {
-    private long audioDurationS;
-    private long audioRecordRateS;
-    private String audioConfigFile;
+    public static final String AUDIO_DURATION_S = "audio_duration";
+    public static final String AUDIO_RECORD_RATE_S = "audio_record_rate";
+    public static final String AUDIO_CONFIG_FILE = "audio_config_file";
 
+    @NonNull
     @Override
     protected AudioDeviceManager createDeviceManager() {
-        return new AudioDeviceManager(this, audioDurationS, audioRecordRateS, audioConfigFile);
+        return new AudioDeviceManager(this);
     }
 
+    @NonNull
     @Override
     protected BaseDeviceState getDefaultState() {
         return new BaseDeviceState();
     }
 
     @Override
-    protected void onInvocation(@NonNull Bundle bundle) {
-        super.onInvocation(bundle);
-
-        audioDurationS = bundle.getLong(AudioServiceProvider.AUDIO_DURATION_S);
-        audioRecordRateS = bundle.getLong(AudioServiceProvider.AUDIO_RECORD_RATE_S);
-        audioConfigFile = bundle.getString(AudioServiceProvider.AUDIO_CONFIG_FILE);
-
-        AudioDeviceManager audioManager = (AudioDeviceManager) getDeviceManager();
-        if (audioManager != null) {
-            audioManager.setAudioDuration(audioDurationS);
-            audioManager.setAudioRecordRate(audioRecordRateS);
-            audioManager.setAudioConfigFile(audioConfigFile);
-        }
+    protected void configureDeviceManager(@NonNull DeviceManager<BaseDeviceState> manager, @NonNull RadarConfiguration configuration) {
+        AudioDeviceManager audioManager = (AudioDeviceManager) manager;
+        audioManager.setRecordDuration(configuration.getLong(AUDIO_DURATION_S, 15L));
+        audioManager.setRecordRate(configuration.getLong(AUDIO_RECORD_RATE_S, 3600L));
+        audioManager.setConfigFile(configuration.getString(AUDIO_CONFIG_FILE, "ComParE_2016.conf"));
     }
 }

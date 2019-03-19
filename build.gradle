@@ -20,9 +20,9 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath 'com.android.tools.build:gradle:3.3.2'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
-        classpath 'digital.wup:android-maven-publish:3.6.1'
+        classpath 'digital.wup:android-maven-publish:3.6.2'
     }
 }
 
@@ -100,15 +100,16 @@ ext.website = 'http://radar-cns.org'
 repositories {
     google()
     jcenter()
+    mavenLocal()
 }
 
 dependencies {
-    api 'org.radarcns:radar-commons-android:0.9.1'
-    implementation 'org.radarcns:radar-schemas-commons:0.4.1'
-    implementation 'org.apache.commons:commons-compress:1.16'
+    api 'org.radarbase:radar-commons-android:0.10.0-SNAPSHOT'
+    implementation 'org.radarcns:radar-schemas-commons:0.4.3'
+    implementation 'org.apache.commons:commons-compress:1.18'
 
     testImplementation 'junit:junit:4.12'
-    testRuntimeOnly 'org.slf4j:slf4j-simple:1.7.25'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:1.7.26'
 }
 
 //---------------------------------------------------------------------------//
@@ -130,7 +131,7 @@ task javadoc(type: Javadoc) {
     source = android.sourceSets.main.java.srcDirs
     android.libraryVariants.all { variant ->
         if (variant.name == 'release') {
-            owner.classpath += variant.javaCompiler.classpath
+            owner.classpath += variant.javaCompileProvider.get().classpath
         }
     }
     classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
@@ -200,7 +201,7 @@ bintray {
     pkg {
         repo = project.group
         name = moduleName
-        userOrg = 'radar-cns'
+        userOrg = 'radar-base'
         desc = moduleDescription
         licenses = ['Apache-2.0']
         websiteUrl = website
@@ -223,5 +224,5 @@ bintray {
 bintrayUpload.dependsOn 'assembleRelease'
 
 wrapper {
-    gradleVersion '4.10.2'
+    gradleVersion '5.2.1'
 }

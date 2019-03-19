@@ -17,12 +17,10 @@
 package org.radarcns.audio;
 
 import android.content.pm.PackageManager;
-import android.os.Bundle;
 import android.support.annotation.NonNull;
 
-import org.radarcns.android.RadarConfiguration;
-import org.radarcns.android.device.BaseDeviceState;
-import org.radarcns.android.device.DeviceServiceProvider;
+import org.radarbase.android.device.BaseDeviceState;
+import org.radarbase.android.device.DeviceServiceProvider;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,20 +30,8 @@ import static android.Manifest.permission.RECORD_AUDIO;
 import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
 public class AudioServiceProvider extends DeviceServiceProvider<BaseDeviceState> {
-    public static final String AUDIO_DURATION_S = "audio_duration";
-    public  static final String AUDIO_RECORD_RATE_S = "audio_record_rate";
-    public  static final String AUDIO_CONFIG_FILE = "audio_config_file";
-
-    protected void configure(Bundle bundle) {
-        super.configure(bundle);
-        RadarConfiguration config = getConfig();
-        bundle.putLong(AUDIO_DURATION_S, config.getLong(AUDIO_DURATION_S, 15L));
-        bundle.putLong(AUDIO_RECORD_RATE_S, config.getLong(AUDIO_RECORD_RATE_S, 3600L));
-        bundle.putString(AUDIO_CONFIG_FILE, config.getString(AUDIO_CONFIG_FILE, "ComParE_2016.conf"));
-    }
-
     @Override
-    public Class<?> getServiceClass() {
+    public Class<AudioService> getServiceClass() {
         return AudioService.class;
     }
 
@@ -56,25 +42,25 @@ public class AudioServiceProvider extends DeviceServiceProvider<BaseDeviceState>
 
     @NonNull
     @Override
-    public List<String> needsPermissions() {
+    public List<String> getPermissionsNeeded() {
         return Arrays.asList(RECORD_AUDIO, WRITE_EXTERNAL_STORAGE);
     }
 
     @NonNull
     @Override
-    public List<String> needsFeatures() {
+    public List<String> getFeaturesNeeded() {
         return Collections.singletonList(PackageManager.FEATURE_MICROPHONE);
     }
 
     @NonNull
     @Override
-    public String getDeviceProducer() {
+    public String getSourceProducer() {
         return "OpenSmile";
     }
 
     @NonNull
     @Override
-    public String getDeviceModel() {
+    public String getSourceModel() {
         return "Audio";
     }
 

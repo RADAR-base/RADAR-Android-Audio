@@ -20,13 +20,14 @@ import android.support.annotation.NonNull;
 import android.util.Base64;
 
 import org.apache.commons.compress.utils.IOUtils;
-import org.radarcns.android.device.AbstractDeviceManager;
-import org.radarcns.android.device.BaseDeviceState;
-import org.radarcns.android.device.DeviceStatusListener;
+import org.radarbase.android.data.DataCache;
+import org.radarbase.android.device.AbstractDeviceManager;
+import org.radarbase.android.device.BaseDeviceState;
+import org.radarbase.android.device.DeviceStatusListener;
+import org.radarbase.android.util.SafeHandler;
 import org.radarcns.kafka.ObservationKey;
 import org.radarcns.opensmile.SmileJNI;
 import org.radarcns.passive.opensmile.OpenSmile2PhoneAudio;
-import org.radarcns.topic.AvroTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,53 +36,51 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+
+import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
 
 /** Manages Phone sensors */
 public class AudioDeviceManager extends AbstractDeviceManager<AudioService, BaseDeviceState> {
     private static final Logger logger = LoggerFactory.getLogger(AudioDeviceManager.class);
 
-    private final AvroTopic<ObservationKey, OpenSmile2PhoneAudio> audioTopic;
+    private final DataCache<ObservationKey, OpenSmile2PhoneAudio> audioTopic;
 
-    private ScheduledFuture<?> audioReadFuture;
-    private final ScheduledExecutorService executor;
+    private SafeHandler.HandlerFuture audioReadFuture;
+    private final SafeHandler executor;
 
-    private long AUDIO_DURATION_S;
-    private long AUDIO_REC_RATE_S;
-    private String AUDIO_CONFIG_FILE;
+    private long recordDuration;
+    private long recordRate;
+    private String configFile;
 
-    AudioDeviceManager(AudioService service, long AUDIO_DURATION_MS, long AUDIO_RECORD_RATE_MS, String AUDIO_CONFIG_FILE) {
+    AudioDeviceManager(AudioService service) {
         super(service);
-        this.audioTopic = createTopic("android_processed_audio", OpenSmile2PhoneAudio.class);
+        this.audioTopic = createCache("android_processed_audio", OpenSmile2PhoneAudio.class);
 
-        this.setAudioDuration(AUDIO_DURATION_MS);
-        this.setAudioRecordRate(AUDIO_RECORD_RATE_MS);
-        this.setAudioConfigFile(AUDIO_CONFIG_FILE);
-
-        // Scheduler TODO: run executor with existing thread pool/factory
-        executor = Executors.newSingleThreadScheduledExecutor();
+        executor = new SafeHandler("AndroidAudio", THREAD_PRIORITY_BACKGROUND);
     }
 
     @Override
     public void start(@NonNull final Set<String> acceptableIds) {
+        executor.start();
         // Audio recording
         updateStatus(DeviceStatusListener.Status.READY);
-        setAudioUpdateRate(AUDIO_REC_RATE_S,AUDIO_DURATION_S,AUDIO_CONFIG_FILE);
+        schedule(recordRate * 1000L, recordDuration, configFile);
         updateStatus(DeviceStatusListener.Status.CONNECTED);
     }
 
-    private void setAudioUpdateRate(final long period, final long duration, final String configFile) {
-        SmileJNI.prepareOpenSMILE(getService());
-        final String conf = getService().getCacheDir() + "/" + configFile;//"/liveinput_android.conf";
+    private void schedule(final long period, final long duration, final String configFile) {
+        executor.execute(() -> {
+            SmileJNI.prepareOpenSMILE(getService());
 
-        synchronized (this) {
             if (audioReadFuture != null) {
-                audioReadFuture.cancel(false);
+                audioReadFuture.cancel();
+                audioReadFuture = null;
             }
-            audioReadFuture = executor.scheduleAtFixedRate(() -> {
+        });
+        executor.delay(period / 4L, () -> {
+            final String conf = getService().getCacheDir() + "/" + configFile;//"/liveinput_android.conf";
+
+            audioReadFuture = executor.repeat(period, () -> {
                 updateStatus(DeviceStatusListener.Status.CONNECTED);
                 logger.info("Setting up audio recording");
                 final String dataPath = getService().getExternalFilesDir("") + "/audio_" + new Date().getTime() + ".bin";
@@ -108,8 +107,9 @@ public class AudioDeviceManager extends AbstractDeviceManager<AudioService, Base
                 });
                 logger.info("Starting audio recording with configuration {} and duration {}, stored to {}", conf, duration, dataPath);
                 smileJNI.runOpenSMILE(conf, dataPath, duration);
-            }, 0, period, TimeUnit.SECONDS);
-        }
+                return null;
+            });
+        });
     }
 
     @Override
@@ -117,19 +117,19 @@ public class AudioDeviceManager extends AbstractDeviceManager<AudioService, Base
         if (isClosed()) {
             return;
         }
-        executor.shutdown();
+        executor.stop(() -> audioReadFuture = null);
         super.close();
     }
 
-    public void setAudioDuration(long audioDurationMs) {
-        AUDIO_DURATION_S = audioDurationMs;
+    public void setRecordDuration(long audioDurationMs) {
+        recordDuration = audioDurationMs;
     }
 
-    public void setAudioRecordRate(long audioRecordRateMs) {
-        AUDIO_REC_RATE_S = audioRecordRateMs;
+    public void setRecordRate(long audioRecordRateMs) {
+        recordRate = audioRecordRateMs;
     }
 
-    public void setAudioConfigFile(String audioConfigFile) {
-        AUDIO_CONFIG_FILE = audioConfigFile;
+    public void setConfigFile(String audioConfigFile) {
+        configFile = audioConfigFile;
     }
 }
