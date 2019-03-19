@@ -82,7 +82,7 @@ class AudioDeviceManager constructor(service: AudioService) : AbstractDeviceMana
         val smileJNI = SmileJNI(localConfig.configFile, dataPath.absolutePath, localConfig.recordDurationMillis)
         logger.info("Starting audio recording with configuration {} and duration {}, stored to {}",
                 localConfig.configFile, localConfig.recordDurationMillis, dataPath)
-        val startTime = System.currentTimeMillis() / 1_000.0
+        val startTime = currentTime
         try {
             smileJNI.run()
             logger.info("Finished recording audio to file {}", dataPath)
@@ -95,7 +95,7 @@ class AudioDeviceManager constructor(service: AudioService) : AbstractDeviceMana
             if (dataPath.exists()) {
                 send(audioTopic, OpenSmile2PhoneAudio(
                         startTime,
-                        System.currentTimeMillis() / 1_000.0,
+                        currentTime,
                         localConfig.configFile,
                         Base64.encodeToString(readAll(dataPath), Base64.DEFAULT)))
                 updateStatus(DeviceStatusListener.Status.READY)

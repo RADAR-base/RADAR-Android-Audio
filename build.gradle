@@ -41,7 +41,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 28
         versionCode 1
-        versionName '0.1.1-SNAPSHOT'
+        versionName '0.2.0-SNAPSHOT'
 
         ndk {
             moduleName 'radar-android-audio'
@@ -138,6 +138,7 @@ task javadoc(type: Javadoc) {
     }
     classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
     exclude '**/R.java'
+    exclude '**/*.kt'
     exclude '**/BuildConfig.java'
 }
 
