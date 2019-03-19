@@ -13,163 +13,84 @@
 package org.radarcns.opensmile;
 
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.res.AssetManager;
 import android.util.Log;
 
-import org.apache.commons.compress.utils.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.FileChannel;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class SmileJNI {
-    public static final String[] assets = {
-            "ComParE_2016.conf",
-            "ComParE_2016_core.func.conf.inc",
-            "ComParE_2016_core.lld.conf.inc",
-            "shared/arff_targets.conf.inc",
-            "shared/BufferMode.conf.inc",
-            "shared/BufferModeLive.conf.inc",
-            "shared/BufferModeRb.conf.inc",
-            "shared/BufferModeRbLag.conf.inc",
-            "shared/FrameModeFunctionals.conf.inc",
-            "shared/FrameModeFunctionalsLive.conf.inc",
-            "shared/standard_data_output.conf.inc",
-            "shared/standard_data_output_lldonly.conf.inc",
-            "shared/standard_wave_input.conf.inc"
-    };
+import static android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE;
 
-    public interface ThreadListener {
-        void onFinishedRecording();
+public class SmileJNI implements Runnable {
+    private static final String ASSET_PATH = "nl/thehyve/prmt/audio";
+    private static File assetDir;
+    private static final AtomicBoolean isRecording = new AtomicBoolean(false);
+    private static MessageListener messageListener;
+    private static final Logger logger = LoggerFactory.getLogger(SmileJNI.class);
+
+    public static File init(Context c) throws IOException {
+        synchronized (SmileJNI.class) {
+            if (assetDir == null) {
+                File assetDirectory = new File(c.getCacheDir(), ASSET_PATH);
+                if (!assetDirectory.exists() && !assetDirectory.mkdirs()) {
+                    throw new IOException("Cannot initialize sample directory");
+                }
+                assetDir = assetDirectory;
+
+                AssetManager assetManager = c.getAssets();
+                String[] fileList = assetManager.list(ASSET_PATH);
+                if (fileList == null) {
+                    throw new IllegalStateException("Asset directory does not exist.");
+                }
+                for (String filename : fileList) {
+                    File outFile = new File(assetDir, filename);
+
+                    byte[] buffer = new byte[8096];
+
+                    try (InputStream in = assetManager.open(ASSET_PATH + '/' + filename);
+                         FileOutputStream out = new FileOutputStream(outFile)) {
+
+                        int bytesRead;
+                        while ((bytesRead = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, bytesRead);
+                        }
+
+                    } catch (IOException e) {
+                        Log.e("tag", "Failed to copy asset file: " + filename, e);
+                    }
+                }
+            }
+            return assetDir;
+        }
     }
 
-    String conf;
-    String recordingPath;
-    ThreadListener listener = null;
-    private static boolean isRecording = false;
-    public static boolean allowRecording = true;
-    public static String lastRecording = "";
-
-
     /**
-     * load the JNI interface
-     */
-    static {
-        System.loadLibrary("smile_jni");
-    }
-
-    /**
-     * method to execute openSMILE binary from the Android app activity, see smile_jni.cpp.
+     * Method to execute openSMILE binary from the Android app activity, see smile_jni.cpp.
      *
      * @param configFile configuration file name
      * @param updateProfile whether to update the audio profile
      * @param outputfile outputfile that openSMILE should write to
      * @return
      */
-    public static native String SMILExtractJNI(String configFile, int updateProfile, String outputfile);
+    public static native String SMILExtractJNI(String cwd, String configFile, int updateProfile, String outputfile);
 
     public static native String SMILEndJNI();
-
-    public static void  prepareOpenSMILE(Context c){
-        setupAssets(c);
-    }
-
-    public void runOpenSMILE(String conf, String recordingPath, long second) {
-        this.conf = conf;
-        this.recordingPath = recordingPath;
-
-        final SmileThread obj = new SmileThread();
-        final Thread newThread = new Thread(obj);
-        newThread.start();
-        Timer t = new Timer();
-        t.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if(isRecording)
-                    stopOpenSMILE();
-                isRecording = false;
-            }
-        }, second * 1000);
-    }
-
-    public static boolean getIsRecording(){
-        return isRecording;
-    }
-
-    public void addListener(ThreadListener listener) {
-        this.listener = listener;
-    }
-
-    public void stopOpenSMILE() {
-        SmileJNI.SMILEndJNI();
-    }
-
-    class SmileThread implements Runnable {
-        //String  conf = getCacheDir()+"/liveinput_android.conf";
-        private volatile boolean paused = false;
-        private final Object signal = new Object();
-
-        @Override
-        public void run() {
-            //String recordingPath = getExternalFilesDir("") + "/test50.bin";
-            File output = new File(recordingPath);
-            lastRecording = recordingPath;
-            if(output.exists()){
-                output.delete();
-            }
-            if(allowRecording) {
-                isRecording = true;
-                try {
-                    SmileJNI.SMILExtractJNI(conf, 1, recordingPath);
-                }
-                catch (Exception e){
-                    lastRecording = "Error in openSMILE!";
-                }
-                isRecording = false;
-                listener.onFinishedRecording();
-                /*try {
-                    //byte[] b = IOUtil.readFile(recordingPath);
-                    /*final String b64 = Base64.encodeToString(b,Base64.DEFAULT);
-                    String dataPathText = getExternalFilesDir("") + "/test50.txt";
-                    try {
-                        File f = new File(dataPathText);
-                        FileOutputStream fos = new FileOutputStream(f);
-                        PrintWriter pw = new PrintWriter(fos);
-                        pw.print(b64);
-                        pw.flush();
-                        pw.close();
-                        fos.close();
-                        ///OutputStreamWriter outputStreamWriter = new OutputStreamWriter(getApplicationContext().openFileOutput("test50.txt", Context.MODE_PRIVATE));
-                        //outputStreamWriter.write(b64);
-                        //outputStreamWriter.close();
-                    }
-                    catch (IOException e) {
-                        Log.e("Exception", "File write failed: " + e.toString());
-                    }*
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }*/
-            }
-        }
-    }
 
     /**
      * process the messages from openSMILE (redirect to app activity etc.)
      */
-    public interface Listener {
+    public interface MessageListener {
         void onSmileMessageReceived(String text);
     }
 
-    private static Listener listener_;
-
-    public static void registerListener(Listener listener) {
-        listener_ = listener;
+    public static void registerListener(MessageListener listener) {
+        messageListener = listener;
     }
 
     /**
@@ -179,28 +100,78 @@ public class SmileJNI {
      * @param text JSON encoded string
      */
     static void receiveText(String text) {
-        if (listener_ != null)
-            listener_.onSmileMessageReceived(text);
+        if (messageListener != null) {
+            messageListener.onSmileMessageReceived(text);
+        }
     }
 
-    static void setupAssets (Context c){
-        //SHOULD BE MOVED TO: /data/user/0/org.radarcns.opensmile/cache/
-        ContextWrapper cw = new ContextWrapper(c);
-        String confcach = cw.getCacheDir() + "/" ;//+ conf.mainConf;
+    private final String conf;
+    private final String recordingPath;
+    private final long duration;
 
-        AssetManager assetManager = c.getAssets();
+    /*
+     * load the JNI interface
+     */
+    static {
+        System.loadLibrary("smile_jni");
+    }
 
-        for(String filename : assets) {
-            String out = confcach + filename;
-            File outFile = new File(out);
-            outFile.getParentFile().mkdirs();
-
-            try (InputStream in = assetManager.open(filename);
-                 FileOutputStream outst = new FileOutputStream(outFile)) {
-                IOUtils.copy(in, outst);
-            } catch(IOException e) {
-                Log.e("tag", "Failed to copy asset file: " + filename, e);
+    public SmileJNI(String conf, String recordingPath, long duration) {
+        File confFile;
+        synchronized (SmileJNI.class) {
+            if (assetDir == null) {
+                throw new IllegalStateException("Cannot start SmileJNI without calling SmileJNI.init");
             }
+            confFile = new File(assetDir, conf);
+        }
+        if (!confFile.exists()) {
+            throw new IllegalArgumentException("Config file " + confFile + " does not exist.");
+        }
+        this.conf = confFile.getAbsolutePath();
+        this.recordingPath = recordingPath;
+        this.duration = duration;
+    }
+
+    @Override
+    public void run() {
+        File output = new File(recordingPath);
+        if (output.exists()) {
+            throw new IllegalStateException("Output path exists");
+        }
+
+        if (isRecording.compareAndSet(false, true)) {
+            Thread jniThread = new Thread("SMILEExtract") {
+                @Override
+                public void run() {
+                    android.os.Process.setThreadPriority(THREAD_PRIORITY_MORE_FAVORABLE);
+                    try {
+                        SmileJNI.SMILExtractJNI(assetDir.getAbsolutePath(), conf, 1, recordingPath);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to run opensmile", e);
+                    }
+                }
+            };
+            jniThread.start();
+
+            synchronized (this) {
+                try {
+                    wait(duration);
+                } catch (InterruptedException ex) {
+                    logger.warn("Interrupted, cancelling earlier", ex);
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            SmileJNI.SMILEndJNI();
+            try {
+                jniThread.join();
+            } catch (InterruptedException ex) {
+                logger.warn("Interrupted, not waiting for writing to finish", ex);
+                Thread.currentThread().interrupt();
+            }
+            isRecording.set(false);
+        } else {
+            throw new IllegalStateException("Another instance is already recording");
         }
     }
 }

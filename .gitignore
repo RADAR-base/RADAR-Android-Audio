@@ -97,5 +97,4 @@ fabric.properties
 *.iml
 *.ipr
 
-## Pebble 2
-.lock*
+.externalNativeBuild

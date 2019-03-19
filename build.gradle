@@ -15,12 +15,14 @@
  */
 
 buildscript {
+    ext.kotlin_version = '1.3.21'
     repositories {
         google()
         jcenter()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.3.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
         classpath 'digital.wup:android-maven-publish:3.6.2'
     }
@@ -63,19 +65,22 @@ android {
             }
         }
     }
-    sourceSets {
-        main {
-            jniLibs.srcDir 'src/main/libs'
-            jni.srcDirs = [] //disable automatic ndk-build call
+
+    // Encapsulates your external native build configurations.
+    externalNativeBuild {
+        ndkBuild {
+            path 'src/main/jni/Android.mk'
         }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
     packagingOptions {
         exclude 'META-INF/ASL2.0'
         exclude 'META-INF/LICENSE'
-    }
-    compileOptions {
-        targetCompatibility 1.8
-        sourceCompatibility 1.8
     }
 }
 
@@ -85,7 +90,7 @@ android {
 
 group = 'org.radarcns'
 ext.moduleName = 'radar-android-audio'
-ext.moduleDescription = 'Audio phone sensor plugin for RADAR passive remote monitoring app'
+description = 'Audio phone sensor plugin for RADAR passive remote monitoring app'
 ext.githubRepoName = 'RADAR-CNS/RADAR-Android-Audio'
 version = android.defaultConfig.versionName
 
@@ -105,11 +110,8 @@ repositories {
 
 dependencies {
     api 'org.radarbase:radar-commons-android:0.10.0-SNAPSHOT'
+    api "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'org.radarcns:radar-schemas-commons:0.4.3'
-    implementation 'org.apache.commons:commons-compress:1.18'
-
-    testImplementation 'junit:junit:4.12'
-    testRuntimeOnly 'org.slf4j:slf4j-simple:1.7.26'
 }
 
 //---------------------------------------------------------------------------//
@@ -122,7 +124,7 @@ ext.sharedManifest = manifest {
 }
 
 task sourcesJar(type: Jar) {
-    classifier = 'sources'
+    archiveClassifier = 'sources'
     from android.sourceSets.main.java.srcDirs
     manifest.from sharedManifest
 }
@@ -140,7 +142,7 @@ task javadoc(type: Javadoc) {
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
+    archiveClassifier = 'javadoc'
     from javadoc.destinationDir
     manifest.from sharedManifest
 }
@@ -152,7 +154,7 @@ publishing {
             artifact javadocJar
 
             pom {
-                description = moduleDescription
+                description = project.description
                 licenses {
                     license {
                         name = 'The Apache Software License, Version 2.0'
@@ -202,7 +204,7 @@ bintray {
         repo = project.group
         name = moduleName
         userOrg = 'radar-base'
-        desc = moduleDescription
+        desc = project.description
         licenses = ['Apache-2.0']
         websiteUrl = website
         issueTrackerUrl = issueUrl
@@ -211,7 +213,7 @@ bintray {
         githubReleaseNotesFile = 'README.md'
         version {
             name = project.version
-            desc = moduleDescription
+            desc = project.description
             vcsTag = System.getenv('TRAVIS_TAG')
             released = new Date()
             gpg {
