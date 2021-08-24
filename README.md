@@ -1,3 +1,7 @@
+# DEPRECATION NOTICE
+
+All plugin development has moved to https://github.com/RADAR-base/radar-commons-android in the plugins directory. Please view that directory for examples of a plugin.
+
 # Audio RADAR-pRMT
 
 Audio plugin for the RADAR passive remote monitoring app. It uses openSMILE to process audio from
